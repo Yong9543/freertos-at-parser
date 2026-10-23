@@ -20,6 +20,7 @@ int main(void)
     test_ring();
     test_client();
     test_server();
+    test_util();
 
     if (g_failed != 0) {
         fprintf(stderr, "%d failed, %d passed\n", g_failed, g_passed);

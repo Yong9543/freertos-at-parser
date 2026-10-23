@@ -24,5 +24,6 @@ void test_line(void);
 void test_client(void);
 void test_server(void);
 void test_ring(void);
+void test_util(void);
 
 #endif
