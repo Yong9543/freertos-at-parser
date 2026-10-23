@@ -10,7 +10,7 @@ CFLAGS ?= -std=c11 -Wall -Wextra -Wpedantic -Werror -Iinclude
 SAN ?= -fsanitize=address,undefined -fno-omit-frame-pointer
 
 LIB_SRC := src/at_util.c src/at_line.c src/at_ring.c src/at_client.c src/at_server.c
-TEST_SRC := tests/test_main.c tests/test_line.c tests/test_client.c tests/test_server.c tests/test_ring.c
+TEST_SRC := tests/test_main.c tests/test_line.c tests/test_client.c tests/test_server.c tests/test_ring.c tests/test_util.c
 FREERTOS_SRC := src/at_freertos.c tests/stubs/stub_kernel.c examples/freertos_uart/main.c tests/test_freertos_build.c
 
 .PHONY: all check clean

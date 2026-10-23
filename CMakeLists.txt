@@ -24,7 +24,8 @@ add_executable(at_tests
     tests/test_line.c
     tests/test_client.c
     tests/test_server.c
-    tests/test_ring.c)
+    tests/test_ring.c
+    tests/test_util.c)
 target_link_libraries(at_tests PRIVATE at_parser)
 target_compile_options(at_tests PRIVATE -Wall -Wextra -Wpedantic)
 
