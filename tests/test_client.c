@@ -161,6 +161,15 @@ void test_client(void)
     EXPECT(value == 10);
 
     reset_tx(&fx);
+    value = 0;
+    fx.script = "\r\n+CMS ERROR: 310\r\n";
+    st = at_client_exec(&client, &resp, 500, "AT+CMGS");
+    EXPECT(st == AT_RESP_ERROR);
+    EXPECT(resp.line_count == 1);
+    EXPECT(at_resp_scanf(&resp, 0, "+CMS ERROR: %d", &value) == 1);
+    EXPECT(value == 310);
+
+    reset_tx(&fx);
     fx.script = NULL;
     st = at_client_exec(&client, &resp, 20, "AT");
     EXPECT(st == AT_RESP_TIMEOUT);
@@ -175,6 +184,28 @@ void test_client(void)
     EXPECT(resp.line_count == 2);
     EXPECT(strcmp(at_resp_line(&resp, 0), "+VAL: 5") == 0);
     EXPECT(at_resp_find(&resp, "+BOOT") == NULL);
+
+    /* Prefix and suffix must both match. A prefix-only lookalike stays in the response. */
+    reset_tx(&fx);
+    fx.urc_hits = 0;
+    {
+        at_urc_t suffix_urc;
+
+        suffix_urc.prefix = "+EVT";
+        suffix_urc.suffix = ": done";
+        suffix_urc.handler = on_boot;
+        suffix_urc.user = &fx;
+        EXPECT(at_client_set_urcs(&client, &suffix_urc, 1) == AT_OK);
+        fx.script = "\r\n+EVT: 1: done\r\n+EVT: pending\r\nOK\r\n";
+        st = at_client_exec(&client, &resp, 500, "AT+EVT");
+        EXPECT(st == AT_RESP_OK);
+        EXPECT(fx.urc_hits == 1);
+        EXPECT(resp.line_count == 2);
+        EXPECT(strcmp(at_resp_line(&resp, 0), "+EVT: pending") == 0);
+        EXPECT(strcmp(at_resp_line(&resp, 1), "OK") == 0);
+        EXPECT(at_resp_find(&resp, ": done") == NULL);
+        EXPECT(at_client_set_urcs(&client, urcs, 1) == AT_OK);
+    }
 
     reset_tx(&fx);
     fx.idle_hits = 0;
