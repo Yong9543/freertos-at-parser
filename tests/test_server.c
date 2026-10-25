@@ -152,8 +152,42 @@ void test_server(void)
     EXPECT(strstr(cap.out, "AT+ADD=1,1\r\n") == cap.out);
     EXPECT(strstr(cap.out, "+ADD: 2") != NULL);
 
+    /* ATE0 is echoed, replies OK, then leaves echo off for the next line. */
+    cap.len = 0;
+    EXPECT(at_server_feed(&server, (const uint8_t *)"ATE0\r\n", 6) == AT_OK);
+    EXPECT(strcmp(cap.out, "ATE0\r\n\r\nOK\r\n") == 0);
+    cap.len = 0;
+    EXPECT(at_server_feed(&server, (const uint8_t *)"AT\r\n", 4) == AT_OK);
+    EXPECT(strcmp(cap.out, "\r\nOK\r\n") == 0);
+
     EXPECT(at_server_set_echo(&server, 0) == AT_OK);
     cap.len = 0;
     EXPECT(at_server_feed(&server, (const uint8_t *)"nope\r\n", 6) == AT_OK);
     EXPECT(strcmp(cap.out, "\r\nERROR\r\n") == 0);
+
+    /* Caller-owned table is already full: table_count == table_cap. */
+    {
+        char full_line[32];
+        at_cmd_entry_t full_table[1];
+        at_server_t full_server;
+        at_server_config_t full_cfg;
+
+        memset(&full_cfg, 0, sizeof(full_cfg));
+        full_cfg.line_buf = full_line;
+        full_cfg.line_buf_size = sizeof(full_line);
+        full_cfg.write = cap_write;
+        full_cfg.write_ctx = &cap;
+        full_cfg.table = full_table;
+        full_cfg.table_cap = 1;
+
+        EXPECT(at_server_init(&full_server, &full_cfg) == AT_OK);
+        EXPECT(at_server_register(&full_server, "ADD", on_add, NULL) == AT_OK);
+        EXPECT(at_server_register(&full_server, "ECHO", on_echo, NULL) == AT_ERR_NOMEM);
+        EXPECT(full_server.table_count == 1);
+
+        cap.len = 0;
+        EXPECT(at_server_feed(&full_server, (const uint8_t *)"AT+ADD=2,3\r\n", 13) == AT_OK);
+        EXPECT(strstr(cap.out, "+ADD: 5") != NULL);
+        EXPECT(strstr(cap.out, "AT+ADD=2,3") == NULL);
+    }
 }
