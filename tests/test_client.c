@@ -254,6 +254,22 @@ void test_client(void)
     EXPECT(fx.idle_hits == 1);
     EXPECT(at_client_last_status(&client) == AT_RESP_TIMEOUT);
 
+    /* A command still armed rejects another exec and CLI entry. */
+    reset_tx(&fx);
+    fx.cli_bytes = 0;
+    st = at_client_exec(&client, &resp, 1000, "AT+HOLD");
+    EXPECT(st == AT_RESP_PENDING);
+    EXPECT(at_client_is_waiting(&client) == 1);
+    st = at_client_exec(&client, &resp, 1000, "AT+NEXT");
+    EXPECT(st == AT_RESP_BUSY);
+    EXPECT(at_client_enter_cli(&client, on_cli, &fx) == AT_ERR_BUSY);
+    EXPECT(at_client_is_waiting(&client) == 1);
+    EXPECT(strcmp(fx.tx, "AT+HOLD\r\n") == 0);
+    (void)at_client_feed(&client, (const uint8_t *)"OK\r\n", 4);
+    EXPECT(at_client_is_waiting(&client) == 0);
+    EXPECT(at_client_last_status(&client) == AT_RESP_OK);
+    EXPECT(fx.cli_bytes == 0);
+
     EXPECT(at_client_enter_cli(&client, on_cli, &fx) == AT_OK);
     st = at_client_exec(&client, &resp, 10, "AT");
     EXPECT(st == AT_RESP_BUSY);
