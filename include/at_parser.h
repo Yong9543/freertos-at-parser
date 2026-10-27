@@ -257,11 +257,12 @@ int at_server_register(at_server_t *server, const char *name, at_cmd_fn handler,
 int at_server_set_echo(at_server_t *server, int enable);
 int at_server_feed(at_server_t *server, const uint8_t *data, size_t len);
 
-/* Reply helpers. reply_line does not finish the command; OK/ERROR/CME do. */
+/* Reply helpers. reply_line does not finish the command; OK/ERROR/CME/CMS do. */
 int at_server_reply_line(at_server_t *server, const char *fmt, ...);
 int at_server_reply_ok(at_server_t *server);
 int at_server_reply_error(at_server_t *server);
 int at_server_reply_cme(at_server_t *server, int code);
+int at_server_reply_cms(at_server_t *server, int code);
 
 /*
  * Single-producer, single-consumer byte ring.

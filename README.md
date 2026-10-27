@@ -12,7 +12,7 @@ The core does not allocate. Line buffers, response buffers, and the command tabl
 - Client: send, collect response lines, wait for `OK` / `ERROR` / `FAIL` / `+CME ERROR` / `+CMS ERROR` or a timeout
 - URC table (prefix and optional suffix) so unsolicited lines stay out of the response buffer
 - CLI mode that forwards raw bytes
-- Server: register handlers and reply with `OK`, `ERROR`, `+CME ERROR`, or a `+CMD:` line
+- Server: register handlers and reply with `OK`, `ERROR`, `+CME ERROR`, `+CMS ERROR`, or a `+CMD:` line
 - Single-producer byte ring for a UART ISR
 - FreeRTOS RX task, optional TX queue, command mutex, and response semaphore
 - Host build and unit tests with no RTOS

@@ -86,12 +86,13 @@ int at_server_reply_line(at_server_t *server, const char *fmt, ...);
 int at_server_reply_ok(at_server_t *server);
 int at_server_reply_error(at_server_t *server);
 int at_server_reply_cme(at_server_t *server, int code);
+int at_server_reply_cms(at_server_t *server, int code);
 int at_server_set_echo(at_server_t *server, int enable);
 ```
 
 The command table is caller-owned. `name` is the command without `AT+` (`"ADD"` matches `AT+ADD`). Comparison ignores case. Names must outlive the server.
 
-A handler runs with `cmd->argv` valid only for that call. Return `AT_OK` to let the server append `OK` after any `at_server_reply_line` text. Return `AT_REPLIED` after `at_server_reply_ok`, `at_server_reply_error`, or `at_server_reply_cme`. Any other negative code produces `ERROR`, unless the handler already sent a final line or the write hook failed.
+A handler runs with `cmd->argv` valid only for that call. Return `AT_OK` to let the server append `OK` after any `at_server_reply_line` text. Return `AT_REPLIED` after `at_server_reply_ok`, `at_server_reply_error`, `at_server_reply_cme`, or `at_server_reply_cms`. `at_server_reply_cme` writes `+CME ERROR: <code>` and `at_server_reply_cms` writes `+CMS ERROR: <code>`; both mark the command finished, so the server does not append `OK`. Any other negative code produces `ERROR`, unless the handler already sent a final line or the write hook failed.
 
 Built in, when not overridden:
 
