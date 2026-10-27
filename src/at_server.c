@@ -144,6 +144,20 @@ int at_server_reply_cme(at_server_t *server, int code)
     return rc;
 }
 
+int at_server_reply_cms(at_server_t *server, int code)
+{
+    int rc;
+
+    if (server == NULL || !server->ready) {
+        return AT_ERR_PARAM;
+    }
+    rc = at_server_reply_line(server, "+CMS ERROR: %d", code);
+    if (rc == AT_OK) {
+        server->final_sent = 1;
+    }
+    return rc;
+}
+
 static const at_cmd_entry_t *find_cmd(const at_server_t *server, const char *name)
 {
     size_t i;

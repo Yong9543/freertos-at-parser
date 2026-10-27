@@ -74,6 +74,16 @@ static int on_cme(at_server_t *server, const at_cmd_t *cmd, void *user)
     return AT_REPLIED;
 }
 
+static int on_cms(at_server_t *server, const at_cmd_t *cmd, void *user)
+{
+    (void)cmd;
+    (void)user;
+    if (at_server_reply_cms(server, 310) != AT_OK) {
+        return AT_ERR_IO;
+    }
+    return AT_REPLIED;
+}
+
 static int on_gmr(at_server_t *server, const at_cmd_t *cmd, void *user)
 {
     (void)user;
@@ -106,6 +116,7 @@ void test_server(void)
     EXPECT(at_server_register(&server, "add", on_add, NULL) == AT_ERR_PARAM);
     EXPECT(at_server_register(&server, "ECHO", on_echo, NULL) == AT_OK);
     EXPECT(at_server_register(&server, "CME", on_cme, NULL) == AT_OK);
+    EXPECT(at_server_register(&server, "CMS", on_cms, NULL) == AT_OK);
     EXPECT(at_server_register(&server, "GMR", on_gmr, NULL) == AT_OK);
 
     EXPECT(at_server_feed(&server, (const uint8_t *)"AT\r\n", 4) == AT_OK);
@@ -138,6 +149,11 @@ void test_server(void)
     cap.len = 0;
     EXPECT(at_server_feed(&server, (const uint8_t *)"AT+CME\r\n", 8) == AT_OK);
     EXPECT(strstr(cap.out, "+CME ERROR: 3") != NULL);
+    EXPECT(strstr(cap.out, "\r\nOK\r\n") == NULL);
+
+    cap.len = 0;
+    EXPECT(at_server_feed(&server, (const uint8_t *)"AT+CMS\r\n", 8) == AT_OK);
+    EXPECT(strstr(cap.out, "+CMS ERROR: 310") != NULL);
     EXPECT(strstr(cap.out, "\r\nOK\r\n") == NULL);
 
     cap.len = 0;
