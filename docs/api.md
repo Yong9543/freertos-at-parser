@@ -18,6 +18,7 @@ Version: `AT_PARSER_VERSION_STRING` (`0.1.0`).
 | `AT_RESP_TIMEOUT` | The wait elapsed, or `at_client_abort` ran |
 | `AT_RESP_OVERFLOW` | The line or the response buffer ran out of room |
 | `AT_RESP_PENDING` | Command is armed and the caller must keep feeding bytes |
+| `AT_RESP_IDLE` | No exchange has completed yet (after init or reset) |
 | `AT_RESP_BUSY` | A command is already in flight, or the client is in CLI mode |
 | `AT_RESP_IO` | The write hook failed |
 | `AT_RESP_PARAM` | A required pointer or buffer was missing |

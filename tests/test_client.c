@@ -169,6 +169,34 @@ void test_client(void)
     EXPECT(at_resp_scanf(&resp, 0, "+CMS ERROR: %d", &value) == 1);
     EXPECT(value == 310);
 
+    /* Final result lines match without regard to case. */
+    reset_tx(&fx);
+    fx.script = "\r\nok\r\n";
+    st = at_client_exec(&client, &resp, 500, "AT");
+    EXPECT(st == AT_RESP_OK);
+    EXPECT(resp.line_count == 1);
+    EXPECT(strcmp(at_resp_line(&resp, 0), "ok") == 0);
+
+    reset_tx(&fx);
+    fx.script = "\r\nerror\r\n";
+    st = at_client_exec(&client, &resp, 500, "AT+NOPE");
+    EXPECT(st == AT_RESP_ERROR);
+    EXPECT(resp.line_count == 1);
+
+    reset_tx(&fx);
+    fx.script = "\r\nfail\r\n";
+    st = at_client_exec(&client, &resp, 500, "AT+X");
+    EXPECT(st == AT_RESP_FAIL);
+    EXPECT(resp.line_count == 1);
+
+    reset_tx(&fx);
+    value = 0;
+    fx.script = "\r\n+cme error: 50\r\n";
+    st = at_client_exec(&client, &resp, 500, "AT+C");
+    EXPECT(st == AT_RESP_ERROR);
+    EXPECT(at_resp_scanf(&resp, 0, "+cme error: %d", &value) == 1);
+    EXPECT(value == 50);
+
     reset_tx(&fx);
     fx.script = NULL;
     st = at_client_exec(&client, &resp, 20, "AT");
