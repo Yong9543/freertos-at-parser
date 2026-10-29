@@ -198,6 +198,14 @@ void test_client(void)
     EXPECT(value == 50);
 
     reset_tx(&fx);
+    value = 0;
+    fx.script = "\r\n+cms error: 310\r\n";
+    st = at_client_exec(&client, &resp, 500, "AT+CMGS");
+    EXPECT(st == AT_RESP_ERROR);
+    EXPECT(at_resp_scanf(&resp, 0, "+cms error: %d", &value) == 1);
+    EXPECT(value == 310);
+
+    reset_tx(&fx);
     fx.script = NULL;
     st = at_client_exec(&client, &resp, 20, "AT");
     EXPECT(st == AT_RESP_TIMEOUT);
