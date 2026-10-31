@@ -110,9 +110,11 @@ Replies are framed as `\r\n` + text + `\r\n`.
 int at_ring_init(at_ring_t *ring, uint8_t *storage, size_t cap);
 size_t at_ring_write(at_ring_t *ring, const uint8_t *data, size_t len);
 size_t at_ring_read(at_ring_t *ring, uint8_t *data, size_t len);
+size_t at_ring_used(const at_ring_t *ring);
+size_t at_ring_free(const at_ring_t *ring);
 ```
 
-One slot stays empty, so the usable capacity is `cap - 1`. One producer and one consumer. See `docs/thread-safety.md`.
+`at_ring_used` and `at_ring_free` report stored bytes and remaining free slots. One slot stays empty, so the usable capacity is `cap - 1`. One producer and one consumer. See `docs/thread-safety.md`.
 
 ## FreeRTOS adapter
 
