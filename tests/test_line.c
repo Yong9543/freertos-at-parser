@@ -142,4 +142,67 @@ void test_line(void)
 
     strcpy(line, "AT+M=0,1,2,3,4,5,6,7,8");
     EXPECT(at_parse_command(line, &cmd) == AT_ERR_OVERFLOW);
+
+    /* Reset drops a partial line and an overflow without replacing the buffer. */
+    {
+        char hold[16];
+        char *saved_buf;
+        size_t saved_cap;
+        char saved_sign;
+        at_line_parser_t lp;
+
+        memset(hold, 0x5a, sizeof(hold));
+        at_line_parser_init(&lp, hold, sizeof(hold), '>');
+        feed_str(&lp, "PART", &ev);
+        EXPECT(ev == AT_LINE_CONTINUE);
+        EXPECT(lp.len == 4);
+        EXPECT(lp.overflowing == 0);
+        EXPECT(lp.finished == 0);
+        EXPECT(lp.ended_by_sign == 0);
+        EXPECT(lp.buf[0] == 'P');
+
+        saved_buf = lp.buf;
+        saved_cap = lp.cap;
+        saved_sign = lp.end_sign;
+        at_line_parser_reset(&lp);
+        EXPECT(lp.len == 0);
+        EXPECT(lp.overflowing == 0);
+        EXPECT(lp.finished == 0);
+        EXPECT(lp.ended_by_sign == 0);
+        EXPECT(lp.buf[0] == '\0');
+        EXPECT(lp.buf == saved_buf);
+        EXPECT(lp.cap == saved_cap);
+        EXPECT(lp.end_sign == saved_sign);
+
+        feed_str(&lp, "OK>", &ev);
+        EXPECT(ev == AT_LINE_READY);
+        EXPECT(lp.ended_by_sign == 1);
+        EXPECT(strcmp(lp.buf, "OK>") == 0);
+
+        at_line_parser_init(&lp, hold, 8, '>');
+        feed_str(&lp, "0123456>", &ev);
+        EXPECT(ev == AT_LINE_OVERFLOW);
+        EXPECT(lp.overflowing == 1);
+        EXPECT(lp.finished == 1);
+        EXPECT(lp.ended_by_sign == 1);
+        EXPECT(lp.len == 0);
+
+        saved_buf = lp.buf;
+        saved_cap = lp.cap;
+        saved_sign = lp.end_sign;
+        at_line_parser_reset(&lp);
+        EXPECT(lp.len == 0);
+        EXPECT(lp.overflowing == 0);
+        EXPECT(lp.finished == 0);
+        EXPECT(lp.ended_by_sign == 0);
+        EXPECT(lp.buf[0] == '\0');
+        EXPECT(lp.buf == saved_buf);
+        EXPECT(lp.cap == saved_cap);
+        EXPECT(lp.end_sign == saved_sign);
+
+        feed_str(&lp, "OK\r", &ev);
+        EXPECT(ev == AT_LINE_READY);
+        EXPECT(lp.ended_by_sign == 0);
+        EXPECT(strcmp(lp.buf, "OK") == 0);
+    }
 }

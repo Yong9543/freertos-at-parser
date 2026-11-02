@@ -355,6 +355,63 @@ void test_client(void)
     EXPECT(st == AT_RESP_OK);
     EXPECT(strcmp(fx.tx, "AT\r\n") == 0);
 
+    /* Reset clears collected lines and leaves the caller-owned buffer in place. */
+    resp.line_num = 8;
+    reset_tx(&fx);
+    fx.script = "\r\n+GMR: demo\r\nOK\r\n";
+    st = at_client_exec(&client, &resp, 500, "AT+GMR");
+    EXPECT(st == AT_RESP_OK);
+    EXPECT(resp.line_count == 2);
+    EXPECT(resp.buf_len > 0);
+    EXPECT(resp.status == AT_RESP_OK);
+    EXPECT(resp.line_num == 8);
+    EXPECT(resp.buf[0] == '+');
+    {
+        char *buf = resp.buf;
+        size_t buf_size = resp.buf_size;
+        size_t line_num = resp.line_num;
+
+        at_resp_reset(&resp);
+        EXPECT(resp.line_count == 0);
+        EXPECT(resp.buf_len == 0);
+        EXPECT(resp.status == AT_RESP_IDLE);
+        EXPECT(resp.buf == buf);
+        EXPECT(resp.buf_size == buf_size);
+        EXPECT(resp.line_num == line_num);
+        EXPECT(resp.buf[0] == '\0');
+    }
+    reset_tx(&fx);
+    fx.script = "\r\nOK\r\n";
+    st = at_client_exec(&client, &resp, 500, "AT");
+    EXPECT(st == AT_RESP_OK);
+    EXPECT(resp.line_count == 1);
+    EXPECT(resp.buf_len > 0);
+    EXPECT(strcmp(at_resp_line(&resp, 0), "OK") == 0);
+    resp.line_num = 0;
+
+    /* A replacement write hook receives the command; the previous hook does not. */
+    {
+        fixture_t fx2;
+        at_io_ops_t io2;
+
+        memset(&fx2, 0, sizeof(fx2));
+        io2.write = fix_write;
+        io2.ctx = &fx2;
+        EXPECT(at_client_set_io(NULL, &io2) == AT_ERR_PARAM);
+        EXPECT(at_client_set_io(&client, &io2) == AT_OK);
+
+        reset_tx(&fx);
+        reset_tx(&fx2);
+        fx.script = "OK\r\n";
+        st = at_client_exec(&client, &resp, 500, "AT+IO");
+        EXPECT(st == AT_RESP_OK);
+        EXPECT(fx.tx_len == 0);
+        EXPECT(fx.tx[0] == '\0');
+        EXPECT(strcmp(fx2.tx, "AT+IO\r\n") == 0);
+
+        EXPECT(at_client_set_io(&client, &io) == AT_OK);
+    }
+
     EXPECT(at_resp_status_str(AT_RESP_OK) != NULL);
     EXPECT(at_status_str(AT_OK) != NULL);
 }
