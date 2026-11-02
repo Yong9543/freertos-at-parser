@@ -29,10 +29,11 @@ Version: `AT_PARSER_VERSION_STRING` (`0.1.0`).
 
 ```c
 void at_line_parser_init(at_line_parser_t *parser, char *buf, size_t cap, char end_sign);
+void at_line_parser_reset(at_line_parser_t *parser);
 at_line_event_t at_line_parser_byte(at_line_parser_t *parser, unsigned char byte);
 ```
 
-`CR`, `LF`, and `CR+LF` all end a line. A bare extra `CR` or `LF` is `AT_LINE_BLANK`. After `AT_LINE_READY`, `parser->buf` and `parser->len` are valid until the next byte. `end_sign` (for example `'>'`) is an extra terminator and is kept in the line. It must not be `CR` or `LF`.
+`CR`, `LF`, and `CR+LF` all end a line. A bare extra `CR` or `LF` is `AT_LINE_BLANK`. After `AT_LINE_READY`, `parser->buf` and `parser->len` are valid until the next byte. `end_sign` (for example `'>'`) is an extra terminator and is kept in the line. It must not be `CR` or `LF`. `at_line_parser_reset` clears the current line and the overflow and finished flags. The buffer, capacity, and `end_sign` stay as set by init. A NULL parser is ignored.
 
 ```c
 int at_parse_command(char *line, at_cmd_t *cmd);
@@ -46,21 +47,28 @@ Caller-owned. No heap use.
 
 ```c
 void at_resp_init(at_response_t *resp, char *buf, size_t buf_size, size_t line_num);
+void at_resp_reset(at_response_t *resp);
 const char *at_resp_line(const at_response_t *resp, size_t index); /* 0-based */
 const char *at_resp_find(const at_response_t *resp, const char *keyword);
 int at_resp_scanf(const at_response_t *resp, size_t index, const char *fmt, ...);
 ```
 
-`line_num == 0` collects until a final result. Any other value stops after that many stored lines and reports `AT_RESP_OK` even if `OK` has not arrived yet. Final result lines are stored too. Lines are packed as consecutive NUL-terminated strings.
+`line_num == 0` collects until a final result. Any other value stops after that many stored lines and reports `AT_RESP_OK` even if `OK` has not arrived yet. Final result lines are stored too. Lines are packed as consecutive NUL-terminated strings. `at_resp_reset` drops stored lines and sets status to `AT_RESP_IDLE`. The buffer, size, and `line_num` stay as set by init. A NULL response is ignored. `at_client_exec` resets a response that has a usable buffer before it arms the next command.
 
 ## Client
 
 ```c
 int at_client_init(at_client_t *client, const at_client_config_t *cfg);
+int at_client_set_io(at_client_t *client, const at_io_ops_t *io);
+int at_client_set_sync(at_client_t *client, const at_sync_ops_t *sync);
+int at_client_set_urcs(at_client_t *client, const at_urc_t *urcs, size_t count);
+int at_client_set_end_sign(at_client_t *client, char end_sign);
 at_resp_status_t at_client_exec(at_client_t *client, at_response_t *resp,
                                 uint32_t timeout_ms, const char *fmt, ...);
 int at_client_feed(at_client_t *client, const uint8_t *data, size_t len);
 void at_client_abort(at_client_t *client);
+int at_client_is_waiting(const at_client_t *client);
+at_resp_status_t at_client_last_status(const at_client_t *client);
 int at_client_enter_cli(at_client_t *client, at_cli_fn fn, void *user);
 int at_client_exit_cli(at_client_t *client);
 ```
@@ -76,6 +84,10 @@ While a response is armed, a line is classified in this order:
 Unsolicited lines that arrive with no command armed go to the URC table, then to `on_line`.
 
 CLI mode forwards raw bytes and rejects `at_client_exec` with `AT_RESP_BUSY`.
+
+`at_client_set_io` and `at_client_set_sync` replace the write hook and the sync callbacks. Either pointer may be NULL. `at_client_set_urcs` replaces the URC table. The table is caller-owned and is not copied; it may be NULL only when `count` is 0. `at_client_set_end_sign` changes the extra line terminator (`0` disables it). The setters return `AT_OK`, or `AT_ERR_PARAM` if the client is missing or not initialized. `at_client_set_urcs` also returns `AT_ERR_PARAM` when `urcs` is NULL and `count` is not 0.
+
+`at_client_is_waiting` returns 1 while a response is armed and 0 otherwise, including a NULL client. `at_client_last_status` is the result of the latest exchange, `AT_RESP_IDLE` after init, or `AT_RESP_PARAM` for a NULL client. `at_client_abort` sets it to `AT_RESP_TIMEOUT` only when a command was still armed.
 
 ## Server
 
