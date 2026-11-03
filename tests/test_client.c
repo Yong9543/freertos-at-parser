@@ -57,6 +57,56 @@ static void fix_signal(void *ctx)
     ((fixture_t *)ctx)->sem++;
 }
 
+typedef struct sync_probe {
+    at_client_t *client;
+    const char *script;
+    int locks;
+    int unlocks;
+    int waits;
+    int signals;
+    int sem;
+} sync_probe_t;
+
+static void probe_lock(void *ctx)
+{
+    ((sync_probe_t *)ctx)->locks++;
+}
+
+static void probe_unlock(void *ctx)
+{
+    ((sync_probe_t *)ctx)->unlocks++;
+}
+
+static void probe_signal(void *ctx)
+{
+    sync_probe_t *probe = (sync_probe_t *)ctx;
+
+    probe->signals++;
+    probe->sem++;
+}
+
+static int probe_wait(void *ctx, uint32_t timeout_ms)
+{
+    sync_probe_t *probe = (sync_probe_t *)ctx;
+
+    probe->waits++;
+    if (timeout_ms == 0) {
+        if (probe->sem <= 0) {
+            return AT_ERR_TIMEOUT;
+        }
+        probe->sem--;
+        return 0;
+    }
+    if (probe->sem == 0 && probe->script != NULL) {
+        (void)at_client_feed(probe->client, (const uint8_t *)probe->script, strlen(probe->script));
+    }
+    if (probe->sem > 0) {
+        probe->sem--;
+        return 0;
+    }
+    return AT_ERR_TIMEOUT;
+}
+
 static void on_boot(void *user, const char *line, size_t len)
 {
     fixture_t *fx = (fixture_t *)user;
@@ -257,11 +307,20 @@ void test_client(void)
 
     reset_tx(&fx);
     fx.script = ">";
-    (void)at_client_set_end_sign(&client, '>');
+    EXPECT(at_client_set_end_sign(NULL, '>') == AT_ERR_PARAM);
+    EXPECT(at_client_set_end_sign(&client, '>') == AT_OK);
     st = at_client_exec(&client, &resp, 500, "AT+PROMPT");
     EXPECT(st == AT_RESP_OK);
     EXPECT(strcmp(at_resp_line(&resp, 0), ">") == 0);
-    (void)at_client_set_end_sign(&client, 0);
+
+    /* 0 disables the extra terminator, so '>' is stored and does not finish the exchange. */
+    EXPECT(at_client_set_end_sign(&client, 0) == AT_OK);
+    reset_tx(&fx);
+    fx.script = ">\r\n";
+    st = at_client_exec(&client, &resp, 20, "AT+PROMPT");
+    EXPECT(st == AT_RESP_TIMEOUT);
+    EXPECT(resp.line_count == 1);
+    EXPECT(strcmp(at_resp_line(&resp, 0), ">") == 0);
 
     reset_tx(&fx);
     fx.script = "OK\r\n";
@@ -410,6 +469,72 @@ void test_client(void)
         EXPECT(strcmp(fx2.tx, "AT+IO\r\n") == 0);
 
         EXPECT(at_client_set_io(&client, &io) == AT_OK);
+    }
+
+    /* A replacement sync table is what exec locks, waits on, and signals. */
+    {
+        sync_probe_t probe;
+        at_sync_ops_t sync2;
+        at_client_t bare;
+
+        memset(&probe, 0, sizeof(probe));
+        probe.client = &client;
+        sync2.lock = probe_lock;
+        sync2.unlock = probe_unlock;
+        sync2.wait = probe_wait;
+        sync2.signal = probe_signal;
+        sync2.ctx = &probe;
+
+        memset(&bare, 0, sizeof(bare));
+        EXPECT(at_client_set_sync(NULL, &sync2) == AT_ERR_PARAM);
+        EXPECT(at_client_set_sync(&bare, &sync2) == AT_ERR_PARAM);
+        EXPECT(at_client_set_sync(&client, &sync2) == AT_OK);
+
+        /* Mutating the previous table must not change the installed hooks. */
+        sync.wait = NULL;
+        sync.signal = NULL;
+        reset_tx(&fx);
+        fx.sem = 7;
+        probe.script = "\r\nOK\r\n";
+        st = at_client_exec(&client, &resp, 500, "AT+SYNC");
+        EXPECT(st == AT_RESP_OK);
+        EXPECT(resp.line_count == 1);
+        EXPECT(strcmp(at_resp_line(&resp, 0), "OK") == 0);
+        EXPECT(strcmp(fx.tx, "AT+SYNC\r\n") == 0);
+        EXPECT(fx.sem == 7);
+        EXPECT(probe.locks == 1);
+        EXPECT(probe.unlocks == 1);
+        EXPECT(probe.waits == 1);
+        EXPECT(probe.signals == 1);
+        EXPECT(probe.sem == 0);
+
+        /* No sync table: the command stays armed until feed completes it. */
+        EXPECT(at_client_set_sync(&client, NULL) == AT_OK);
+        reset_tx(&fx);
+        probe.script = NULL;
+        st = at_client_exec(&client, &resp, 500, "AT+NOSYNC");
+        EXPECT(st == AT_RESP_PENDING);
+        EXPECT(at_client_is_waiting(&client) == 1);
+        EXPECT(fx.sem == 0);
+        EXPECT(probe.locks == 1);
+        EXPECT(probe.waits == 1);
+        EXPECT(probe.signals == 1);
+        (void)at_client_feed(&client, (const uint8_t *)"OK\r\n", 4);
+        EXPECT(at_client_is_waiting(&client) == 0);
+        EXPECT(at_client_last_status(&client) == AT_RESP_OK);
+        EXPECT(fx.sem == 0);
+        EXPECT(probe.signals == 1);
+
+        sync.wait = fix_wait;
+        sync.signal = fix_signal;
+        EXPECT(at_client_set_sync(&client, &sync) == AT_OK);
+        reset_tx(&fx);
+        fx.script = "\r\nOK\r\n";
+        st = at_client_exec(&client, &resp, 500, "AT");
+        EXPECT(st == AT_RESP_OK);
+        EXPECT(probe.waits == 1);
+        EXPECT(probe.signals == 1);
+        EXPECT(strcmp(at_resp_line(&resp, 0), "OK") == 0);
     }
 
     EXPECT(at_resp_status_str(AT_RESP_OK) != NULL);

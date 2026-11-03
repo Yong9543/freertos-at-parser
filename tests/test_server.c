@@ -176,6 +176,18 @@ void test_server(void)
     EXPECT(at_server_feed(&server, (const uint8_t *)"AT\r\n", 4) == AT_OK);
     EXPECT(strcmp(cap.out, "\r\nOK\r\n") == 0);
 
+    /* set_echo turns echo on and off without an ATE0 / ATE1 command. */
+    {
+        at_server_t bare;
+
+        memset(&bare, 0, sizeof(bare));
+        EXPECT(at_server_set_echo(NULL, 1) == AT_ERR_PARAM);
+        EXPECT(at_server_set_echo(&bare, 1) == AT_ERR_PARAM);
+    }
+    EXPECT(at_server_set_echo(&server, 1) == AT_OK);
+    cap.len = 0;
+    EXPECT(at_server_feed(&server, (const uint8_t *)"AT\r\n", 4) == AT_OK);
+    EXPECT(strcmp(cap.out, "AT\r\n\r\nOK\r\n") == 0);
     EXPECT(at_server_set_echo(&server, 0) == AT_OK);
     cap.len = 0;
     EXPECT(at_server_feed(&server, (const uint8_t *)"nope\r\n", 6) == AT_OK);
