@@ -243,6 +243,28 @@ void test_client(void)
         EXPECT(at_client_set_urcs(&client, urcs, 1) == AT_OK);
     }
 
+    /* A NULL prefix skips the prefix test. Only a line ending in the suffix is a URC. */
+    reset_tx(&fx);
+    fx.urc_hits = 0;
+    {
+        at_urc_t suffix_only;
+
+        suffix_only.prefix = NULL;
+        suffix_only.suffix = ": done";
+        suffix_only.handler = on_boot;
+        suffix_only.user = &fx;
+        EXPECT(at_client_set_urcs(&client, &suffix_only, 1) == AT_OK);
+        fx.script = "\r\nNOTE: 1: done\r\nNOTE: pending\r\nOK\r\n";
+        st = at_client_exec(&client, &resp, 500, "AT+NOTE");
+        EXPECT(st == AT_RESP_OK);
+        EXPECT(fx.urc_hits == 1);
+        EXPECT(resp.line_count == 2);
+        EXPECT(strcmp(at_resp_line(&resp, 0), "NOTE: pending") == 0);
+        EXPECT(strcmp(at_resp_line(&resp, 1), "OK") == 0);
+        EXPECT(at_resp_find(&resp, "NOTE: 1: done") == NULL);
+        EXPECT(at_client_set_urcs(&client, urcs, 1) == AT_OK);
+    }
+
     reset_tx(&fx);
     fx.idle_hits = 0;
     resp.line_num = 1;
